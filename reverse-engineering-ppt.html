@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Engineering - Software Engineering</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.4);
+            --secondary: #818cf8;
+            --success: #34d399;
+            --warning: #fbbf24;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Presentation Container */
+        .presentation {
+            flex: 1;
+            position: relative;
+            perspective: 1000px;
+            overflow: hidden;
+        }
+
+        /* Slide Styles */
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 4rem 10%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            opacity: 0;
+            transform: translateZ(-200px) rotateY(20deg);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateZ(0) rotateY(0);
+            pointer-events: all;
+            z-index: 10;
+        }
+
+        .slide.prev {
+            opacity: 0;
+            transform: translateZ(-200px) rotateY(-20deg);
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            margin-bottom: 1.5rem;
+        }
+
+        .title-huge {
+            font-size: 4.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px var(--accent-glow);
+            margin-bottom: 1rem;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        h2 {
+            font-size: 3rem;
+            color: var(--accent);
+            border-bottom: 2px solid var(--bg-card);
+            padding-bottom: 0.5rem;
+            display: inline-block;
+        }
+        
+        h3 {
+            font-size: 2rem;
+            color: var(--secondary);
+            margin-top: 2rem;
+        }
+
+        p, li {
+            font-size: 1.2rem;
+            line-height: 1.7;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 1rem;
+        }
+
+        li {
+            position: relative;
+            padding-left: 2rem;
+            margin-bottom: 1.2rem;
+            background: var(--bg-card);
+            padding: 1.5rem 1.5rem 1.5rem 3.5rem;
+            border-radius: 12px;
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        li:hover {
+            transform: translateX(10px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+            border-left-color: var(--secondary);
+        }
+
+        li::before {
+            content: "✦";
+            position: absolute;
+            left: 1.2rem;
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
+
+        strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Layout Grids */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+
+        /* Diagrams Area */
+        .diagram-container {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            max-height: 70vh;
+        }
+
+        /* Controls */
+        .controls {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 1rem;
+            z-index: 100;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        button {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            transition: all 0.3s;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .slide-counter {
+            display: flex;
+            align-items: center;
+            font-size: 1rem;
+            color: var(--text-muted);
+            padding: 0 1rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent), var(--secondary));
+            width: 0%;
+            transition: width 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Background Effects */
+        .bg-circles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.15;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .c1 { width: 500px; height: 500px; background: var(--accent); top: -100px; left: -100px; }
+        .c2 { width: 600px; height: 600px; background: var(--secondary); bottom: -200px; right: -100px; animation-delay: -5s; }
+        .c3 { width: 400px; height: 400px; background: var(--success); top: 40%; left: 40%; animation-delay: -10s; opacity: 0.1; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            33% { transform: translate(30px, -50px); }
+            66% { transform: translate(-20px, 40px); }
+        }
+
+        /* Override Mermaid Theme Customizations */
+        .mermaid {
+            background: transparent !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div class="bg-circles">
+        <div class="circle c1"></div>
+        <div class="circle c2"></div>
+        <div class="circle c3"></div>
+    </div>
+
+    <div class="presentation" id="presentation">
+        
+        <!-- Slide 1: Title -->
+        <div class="slide active">
+            <h1 class="title-huge">Software Reverse Engineering</h1>
+            <p class="subtitle">Extracting design, understanding systems, and recovering lost knowledge.</p>
+            <br><br>
+            <p style="color: var(--text-muted); max-width: 600px;">
+                Reverse engineering can extract design information from source code, but the abstraction level, documentation completeness, and human-tool synergy vary highly.
+            </p>
+        </div>
+
+        <!-- Slide 2: Objectives -->
+        <div class="slide">
+            <h2>Objectives of Reverse Engineering</h2>
+            <div class="grid-2">
+                <div>
+                    <ul>
+                        <li><strong>Reducing Costs:</strong> Finding replacements or cost-effective alternatives for systems/components.</li>
+                        <li><strong>Analysis of Security:</strong> Examining exploits, vulnerabilities, and malware in cybersecurity.</li>
+                        <li><strong>Integration & Customization:</strong> Modifying hardware/software components into pre-existing systems.</li>
+                        <li><strong>Recovering Lost Source Code:</strong> Rebuilding representation when original source is lost or inaccessible.</li>
+                        <li><strong>Fixing bugs & maintenance:</strong> Repairing flaws in inadequately documented legacy systems.</li>
+                    </ul>
+                </div>
+                <div class="diagram-container">
+                    <div class="mermaid">
+                        mindmap
+                          root((RE Objectives))
+                            Cost Reduction
+                              Alternatives
+                            Security Analysis
+                              Malware Analysis
+                              Threat Defenses
+                            Integration
+                              Customization
+                              Modifications
+                            Code Recovery
+                              Lost Source
+                            Maintenance
+                              Bug Fixing
+                              Legacy Systems
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Goals -->
+        <div class="slide">
+            <h2>Reverse Engineering Goals</h2>
+            <ul>
+                <li><strong>Cope with Complexity:</strong> Analyze complex systems to reveal architecture, relationships, and design patterns.</li>
+                <li><strong>Recover lost information:</strong> Rebuild source code, analyze data structures, and retrieve design details.</li>
+                <li><strong>Detect side effects:</strong> Find unintended implications, dependencies, and interactions not obvious from docs.</li>
+                <li><strong>Synthesis higher abstraction:</strong> Abstract low-level features to build higher-level representations for easier analysis.</li>
+                <li><strong>Facilitate Reuse:</strong> Find reusable parts or modules to extract and repurpose in other projects.</li>
+            </ul>
+        </div>
+
+        <!-- Slide 4: Data Level -->
+        <div class="slide">
+            <h2>Reverse Engineering to Understand Data</h2>
+            <p class="subtitle" style="margin-bottom: 2rem;">Often the first reengineering task, occurring at different levels of abstraction.</p>
+            
+            <div class="grid-2">
+                <div>
+                    <h3>1. Internal Data Structures (Program Level)</h3>
+                    <p>Focuses on defining classes of objects by examining program code and grouping related variables.</p>
+                    <p>Record structures, files, lists, and other data organizations provide initial indicators of abstract data types (classes).</p>
+
+                    <h3>2. Database Structures (System Level)</h3>
+                    <p>Global data structures (files, databases) are reengineered to accommodate new DB management paradigms (e.g., flat file to RDBMS or Object-Oriented).</p>
+                </div>
+                <div class="diagram-container">
+                    <div class="mermaid">
+                        graph TD
+                            A[Understand Data] -->|Program Level| B(Internal Data Structures)
+                            A -->|System Level| C(Database Structures)
+                            
+                            B --> D[Examine Code]
+                            B --> E[Group Variables]
+                            B --> F[Identify Abstract Data Types]
+                            
+                            C --> G[Legacy Flat Files]
+                            C --> H[Relational DB]
+                            C --> I[Object-Oriented DB]
+                            
+                            classDef nodeFill fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#fff;
+                            class A,B,C,D,E,F,G,H,I nodeFill;
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Class Diagram -->
+        <div class="slide">
+            <h2>Class Diagram: Extracting Abstract Data Types</h2>
+            <p>Example of how unstructured data records are reverse-engineered into an Object-Oriented Class structure.</p>
+            <div class="diagram-container" style="margin-top: 2rem; padding: 1rem;">
+                <div class="mermaid">
+                    classDiagram
+                        note "Legacy C Structs identified in code"
+                        
+                        class EmployeeRecord_Struct {
+                            +int id
+                            +char name[50]
+                            +float salary
+                            +int dept_id
+                        }
+                        
+                        class DepartmentRecord_Struct {
+                            +int dept_id
+                            +char dept_name[50]
+                        }
+                        
+                        note "Reverse Engineered to Higher Abstraction Classes"
+                        
+                        class Employee {
+                            -int employeeId
+                            -String name
+                            -double salary
+                            +calculateBonus()
+                            +promote()
+                        }
+                        
+                        class Department {
+                            -int departmentId
+                            -String departmentName
+                            -List~Employee~ employees
+                            +addEmployee(Employee e)
+                            +getTurnover()
+                        }
+                        
+                        EmployeeRecord_Struct ..> Employee : "Reverse Engineered"
+                        DepartmentRecord_Struct ..> Department : "Reverse Engineered"
+                        Department "1" *-- "*" Employee : "Analyzed Relationship"
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Database DB Reengineering -->
+        <div class="slide">
+            <h2>Database Schema Reengineering</h2>
+            <p>Reengineering one database schema into another requires understanding existing objects and relationships.</p>
+            <br>
+            <h3>Steps to Define Data Model:</h3>
+            <ul>
+                <li><strong>Build an initial object model.</strong></li>
+                <li><strong>Determine candidate keys:</strong> Attributes used to point to another record/table become candidate keys.</li>
+                <li><strong>Refine the tentative classes.</strong></li>
+                <li><strong>Define generalizations.</strong></li>
+            </ul>
+        </div>
+
+        <!-- Slide 7: Processing Processing -->
+        <div class="slide">
+            <h2>Reverse Engineering to Understand Processing</h2>
+            <div class="grid-2">
+                <div>
+                    <p>Begins with extracting procedural abstractions represented by the source code at varying levels:</p>
+                    <ul>
+                        <li><strong>System Level</strong></li>
+                        <li><strong>Program Level</strong></li>
+                        <li><strong>Component Level</strong></li>
+                        <li><strong>Pattern Level</strong></li>
+                        <li><strong>Statement Level</strong></li>
+                    </ul>
+                    <p style="margin-top: 2rem; color: var(--warning);">
+                        <em>Note: For large systems, this is generally accomplished using a semiautomated approach. Output is passed to forward engineering tools.</em>
+                    </p>
+                </div>
+                <div class="diagram-container">
+                    <div class="mermaid">
+                        graph LR
+                            Code[(Legacy Code)] --> Tools[Automated Extraction Tools]
+                            Tools --> Semantics[Understand Semantics]
+                            Semantics --> SA[Semi-automated Analysis]
+                            SA --> Narratives[Processing Narratives]
+                            SA --> BlockDiags[Block Diagrams]
+                            Narratives --> Forward[Forward Engineering]
+                            BlockDiags --> Forward
+                            
+                            classDef nodeFill fill:#1e293b,stroke:#818cf8,stroke-width:2px,color:#fff;
+                            class Code,Tools,Semantics,SA,Narratives,BlockDiags,Forward nodeFill;
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Steps Flowchart -->
+        <div class="slide">
+            <h2>Steps of Software Reverse Engineering</h2>
+            <div class="diagram-container" style="height: 60vh;">
+                <div class="mermaid">
+                    graph TD
+                        1(1. Collection Information) --> 2(2. Examining Information)
+                        2 --> 3(3. Extracting the Structure)
+                        3 --> 4(4. Recording Functionality)
+                        
+                        3 -.-> 5
+                        4 -.-> 5
+                        5(5. Recording Data Flow DFD) --> 6(6. Recording Control Flow)
+                        
+                        6 --> 7(7. Review Extracted Design)
+                        7 --> 8(8. Generate Documentation)
+                        
+                        style 1 fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#fff
+                        style 2 fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#fff
+                        style 3 fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
+                        style 4 fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
+                        style 5 fill:#0f172a,stroke:#fbbf24,stroke-width:2px,color:#fff
+                        style 6 fill:#0f172a,stroke:#fbbf24,stroke-width:2px,color:#fff
+                        style 7 fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#fff
+                        style 8 fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#fff
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Tools -->
+        <div class="slide">
+            <h2>Reverse Engineering Tools</h2>
+            <p>Manual reverse engineering consumes too much time and labor, hence automated tools are critical.</p>
+            <div class="grid-2" style="margin-top: 2rem;">
+                <ul>
+                    <li><strong>CIAO and CIA:</strong> Graphical navigator for software/web repositories.</li>
+                    <li><strong>Rigi:</strong> Visual software understanding tool.</li>
+                    <li><strong>Bunch:</strong> Software clustering and modularization tool.</li>
+                </ul>
+                <ul>
+                    <li><strong>GEN++:</strong> Application generator for C++ analysis tools.</li>
+                    <li><strong>PBS:</strong> Software Bookshelf tools for extracting and visualizing program architecture.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 10: Conclusion -->
+        <div class="slide">
+            <h1 class="title-huge" style="font-size: 3.5rem;">Summary</h1>
+            <br>
+            <ul>
+                <li>Reverse Engineering reconstructs design, architecture, and data structures from existing code.</li>
+                <li><strong>Core Goals:</strong> Reduce costs, analyze vulnerabilities, integrate systems, and recover lost knowledge.</li>
+                <li><strong>Data Reengineering:</strong> Key focus on recognizing Abstract Data Types (Internal) and Database schemas (Global).</li>
+                <li><strong>Process Flow:</strong> Collect -> Examine -> Extract Structure -> Record Logic & Data Flow -> Review -> Document.</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button id="prevBtn" title="Previous Slide (Left Arrow)">◀ Prev</button>
+        <div class="slide-counter" id="counter">1 / 10</div>
+        <button id="nextBtn" title="Next Slide (Right Arrow)">Next ▶</button>
+    </div>
+
+    <script>
+        // Init Mermaid with Dark Theme
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            securityLevel: 'loose',
+            fontFamily: 'Inter, sans-serif'
+        });
+
+        // Slide Logic
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const counter = document.getElementById('counter');
+        const progressBar = document.getElementById('progressBar');
+        
+        let currentSlide = 0;
+        const totalSlides = slides.length;
+
+        function updateSlides() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'prev');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                } else if (index < currentSlide) {
+                    slide.classList.add('prev');
+                }
+            });
+
+            counter.textContent = `${currentSlide + 1} / ${totalSlides}`;
+            progressBar.style.width = `${((currentSlide) / (totalSlides - 1)) * 100}%`;
+
+            prevBtn.style.opacity = currentSlide === 0 ? '0.3' : '1';
+            prevBtn.style.cursor = currentSlide === 0 ? 'default' : 'pointer';
+            
+            nextBtn.style.opacity = currentSlide === totalSlides - 1 ? '0.3' : '1';
+            nextBtn.style.cursor = currentSlide === totalSlides - 1 ? 'default' : 'pointer';
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateSlides();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlides();
+            }
+        }
+
+        nextBtn.addEventListener('click', nextSlide);
+        prevBtn.addEventListener('click', prevSlide);
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space' || e.key === 'Enter') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                prevSlide();
+            }
+        });
+
+        // Init
+        updateSlides();
+    </script>
+</body>
+</html>
